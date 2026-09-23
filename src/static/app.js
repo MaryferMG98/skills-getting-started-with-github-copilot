@@ -10,10 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
-      // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
@@ -30,15 +29,49 @@ document.addEventListener("DOMContentLoaded", () => {
             <strong>Participants:</strong>
             <ul>
               ${participants.length
-                ? participants.map((email) => `<li>${email}</li>`).join("")
-                : "<li>No participants yet</li>"}
+                ? participants.map((email) => `
+                  <li class="participant-item">
+                    <span>${email}</span>
+                    <button type="button" class="remove-participant" data-activity="${name}" data-email="${email}" aria-label="Remove ${email} from ${name}" title="Remove participant">✕</button>
+                  </li>
+                `).join("")
+                : "<li class='participant-empty'>No participants yet</li>"}
             </ul>
           </div>
         `;
 
+        activityCard.querySelectorAll(".remove-participant").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const activityName = button.dataset.activity;
+            const participantEmail = button.dataset.email;
+
+            try {
+              const result = await fetch(
+                `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(participantEmail)}`,
+                { method: "DELETE" }
+              );
+
+              const data = await result.json();
+
+              if (!result.ok) {
+                throw new Error(data.detail || "Failed to remove participant");
+              }
+
+              messageDiv.textContent = data.message;
+              messageDiv.className = "success";
+              messageDiv.classList.remove("hidden");
+              setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+              await fetchActivities();
+            } catch (error) {
+              messageDiv.textContent = error.message || "Failed to remove participant.";
+              messageDiv.className = "error";
+              messageDiv.classList.remove("hidden");
+            }
+          });
+        });
+
         activitiesList.appendChild(activityCard);
 
-        // Add option to select dropdown
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;
@@ -71,6 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
